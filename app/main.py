@@ -20,7 +20,7 @@ from fastapi import (
 from fastapi.responses import FileResponse
 from fastapi.security import APIKeyHeader
 
-from app.database import create_tables
+from app.database import verify_database_schema
 from app.dependencies import get_task_service
 from app.models import TaskCreate, TaskResponse, TaskUpdate
 from app.services.exceptions import (
@@ -32,11 +32,11 @@ from app.services.task_service import TaskService
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
-    """Validate configuration and initialize database tables on startup."""
+    """Validate required runtime configuration on application startup."""
     api_key = os.getenv("API_KEY")
     if api_key is None or len(api_key) < 32:
         raise RuntimeError("API_KEY must be configured with at least 32 characters.")
-    create_tables()
+    verify_database_schema()
     yield
 
 

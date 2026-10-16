@@ -19,7 +19,7 @@ API_KEY = "test-api-key-that-is-at-least-32-characters"
 def client(monkeypatch: pytest.MonkeyPatch) -> Generator[TestClient, None, None]:
     """Provide an API client connected to an isolated in-memory database."""
     monkeypatch.setenv("API_KEY", API_KEY)
-    monkeypatch.setattr(main, "create_tables", lambda: None)
+    monkeypatch.setattr(main, "verify_database_schema", lambda: None)
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},

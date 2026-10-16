@@ -2,11 +2,13 @@
 
 import os
 from collections.abc import Generator
+from pathlib import Path
 
+from alembic.config import Config
+from alembic.migration import MigrationContext
+from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
-
-from app.database_models import Base
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./tasks.db")
 connect_args = (
@@ -19,9 +21,28 @@ engine = create_engine(DATABASE_URL, connect_args=connect_args)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 
-def create_tables() -> None:
-    """Create database tables that do not already exist."""
-    Base.metadata.create_all(bind=engine)
+def verify_database_schema() -> None:
+    """Fail startup unless the database has been upgraded to the migration head.
+
+    Raises:
+        RuntimeError: If the database is not stamped with the current Alembic
+            migration revision.
+    """
+    alembic_config = Config(
+        str(Path(__file__).resolve().parent.parent / "alembic.ini")
+    )
+    script_directory = ScriptDirectory.from_config(alembic_config)
+    expected_revision = script_directory.get_current_head()
+    with engine.connect() as connection:
+        current_revision = MigrationContext.configure(
+            connection
+        ).get_current_revision()
+    if current_revision != expected_revision:
+        raise RuntimeError(
+            "Database schema is not at the current migration revision "
+            f"(found {current_revision!r}, expected {expected_revision!r}); "
+            "run 'python -m alembic upgrade head' before starting the API."
+        )
 
 
 def get_db() -> Generator[Session, None, None]:
