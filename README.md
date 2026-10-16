@@ -1,6 +1,6 @@
 # API de Gerenciamento de Tarefas
 
-Micro-API REST em Python com FastAPI para criar, listar, consultar, atualizar e excluir tarefas. O projeto inclui uma interface web simples servida pela própria API.
+Este projeto foi desenvolvido com apoio de ferramentas de IA na análise de riscos, implementação de melhorias, criação de testes e documentação. A aplicação oferece uma API REST em Python com FastAPI e uma interface web integrada para gerenciar tarefas; também conta com autenticação por chave, validação de dados, migrações versionadas do SQLite e ferramentas de backup e restauração.
 
 ## Tecnologias e ferramentas
 
@@ -55,13 +55,14 @@ python -m pip install -r requirements-dev.txt
 
 O arquivo `requirements-dev.txt` instala as dependências da aplicação, do pytest e dos testes HTTP.
 
-Na primeira inicialização, a aplicação cria as tabelas necessárias. Por padrão, o banco é `tasks.db` na raiz do projeto. Para mudar o caminho do arquivo SQLite, configure `DATABASE_URL` antes de iniciar o servidor:
+O schema é controlado por migrações Alembic. Para um banco novo, execute `python -m alembic upgrade head` antes de iniciar a API. O banco padrão é `tasks.db` na raiz do projeto. Para mudar o caminho do arquivo SQLite, configure `DATABASE_URL` antes de migrar ou iniciar:
 
 ```powershell
 $env:DATABASE_URL = "sqlite:///./data/tasks.db"
+python -m alembic upgrade head
 ```
 
-O diretório `data` deve existir previamente. O projeto não carrega arquivos `.env` automaticamente.
+O diretório `data` deve existir previamente. O projeto não carrega arquivos `.env` automaticamente. Para um banco legado que já foi criado pela aplicação anterior, faça e verifique um backup antes de executar `python -m alembic upgrade head`; a migração inicial valida o schema e adota as tabelas existentes sem recriá-las. Se a validação falhar, não use `stamp` nem apague o banco: investigue o schema e restaure o backup, se necessário.
 
 A API exige uma chave com pelo menos 32 caracteres. Gere uma chave para desenvolvimento e configure-a no ambiente antes de iniciar o servidor:
 
@@ -162,6 +163,26 @@ make test
 ```
 
 Os testes usam bancos SQLite em memória isolados e cobrem regras de serviço, autenticação, CRUD HTTP, validação, filtro/paginação e entrega da interface.
+
+## Backup e restauração (SQLite)
+
+Crie manualmente um snapshot consistente mesmo com a API em execução:
+
+```powershell
+python -m app.backup create --directory .secrets/backups --keep 7
+```
+
+O backup usa a SQLite Online Backup API, verifica `PRAGMA integrity_check` e mantém as sete cópias mais recentes. Restaure somente depois de parar a API; o comando exige confirmação porque substitui o arquivo e cria um snapshot pré-restauração:
+
+```powershell
+python -m app.backup restore .secrets/backups/tasks-YYYYMMDDTHHMMSSffffffZ.sqlite3 --confirm
+```
+
+Recomendação de hospedagem para este escopo: VM Ubuntu Server 24.04 LTS, uma única instância `systemd`, SQLite em volume persistente, Caddy como proxy HTTPS, usuário de serviço sem privilégios e arquivo de ambiente (`API_KEY`/`DATABASE_URL`) fora do checkout com permissões restritas. O unit `ops/systemd/task-api.service` é uma base de execução: ajuste diretórios e instale Caddy com um domínio real antes de expor a API. Os arquivos `ops/systemd/task-api-backup.service` e `ops/systemd/task-api-backup.timer` executam backup diário com retenção de sete cópias locais. Instale-os na VM, ajuste usuário e caminhos, crie `/var/backups/task-api` gravável pelo usuário do serviço e habilite o timer com `systemctl enable --now task-api-backup.timer`.
+
+Procedimento para uma atualização com schema: confirmar backup íntegro, parar a API, executar `python -m alembic upgrade head`, iniciar a API e verificar logs/health e fluxo de CRUD; se falhar, parar o serviço e restaurar o snapshot confirmado. Não automatize o upgrade no startup: isso evita aplicar migrações sem backup operacional prévio.
+
+**Sete cópias apenas no mesmo host/volume não constituem recuperação de desastre.** Antes de produção, copie os backups para armazenamento externo criptografado (por exemplo, bucket S3-compatible com política de retenção/imutabilidade), alerte sobre falhas e execute um teste de restauração a partir da cópia externa. Provedor, região e credenciais ainda precisam ser definidos; não faça upload de dados para um destino não aprovado.
 
 ## Como a IA Acelerou Este Projeto
 

@@ -48,7 +48,7 @@ As rotas CRUD de tarefas e a rota que serve a interface web estão em `app/main.
 
 ### Banco de dados
 
-`app/database.py` configura o engine SQLite e fornece uma sessão por requisição. `app/database_models.py` define as tabelas ORM. A aplicação cria as tabelas durante a inicialização.
+`app/database.py` configura o engine SQLite, verifica que o banco está na revisão Alembic atual antes de iniciar e fornece uma sessão por requisição. `app/database_models.py` define as tabelas ORM. O schema é gerenciado por migrações versionadas em `migrations/`; a aplicação não altera o banco automaticamente no startup. `app/backup.py` cria snapshots SQLite consistentes, verifica a integridade e oferece restauração com confirmação.
 
 O banco padrão é `sqlite:///./tasks.db`. A variável de ambiente `DATABASE_URL` permite configurar outro endereço aceito pelo SQLAlchemy. `create_all` cria tabelas ausentes, mas não migra tabelas existentes; antes de atualizar um banco persistente em produção, é necessário adicionar migrações versionadas e validar upgrade/rollback. SQLite é suportado para uso local e implantação single-instance com volume persistente e backup/restauração testados; não usar com múltiplas réplicas. Consulte [docs/plano-release.md](plano-release.md) para os bloqueios de release.
 
@@ -86,6 +86,8 @@ tests/
 Os testes de `tests/test_tasks.py` usam um banco SQLite em memória isolado por teste. Eles cobrem criação válida, validação do título, conclusão de tarefa e IDs inexistentes.
 
 `tests/test_api.py` verifica contratos HTTP, chave de API, CRUD, validação, paginação e entrega da interface. O GitHub Actions executa a suíte em Python 3.11 e 3.14. O roteiro mínimo de smoke test manual de navegador está em [docs/plano-release.md](plano-release.md).
+
+`tests/test_operations.py` valida aplicação/adopção de migração, verificação do schema na inicialização e ciclo backup/restauração. A rotina diária de host está exemplificada em `ops/systemd/`; para detalhes de preparação, retenção e bloqueios externos, consulte [README.md](../README.md) e [docs/plano-release.md](plano-release.md).
 
 ```powershell
 python -m pytest
