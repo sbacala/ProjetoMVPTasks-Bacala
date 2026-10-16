@@ -28,11 +28,13 @@ flowchart LR
 
 ### Controller
 
-As rotas CRUD de tarefas e a rota que serve a interface web estão em `app/main.py`. As rotas da API validam e serializam os contratos HTTP por meio de modelos Pydantic, convertem erros de domínio em respostas HTTP e recebem `TaskService` através do sistema de dependências do FastAPI.
+As rotas CRUD de tarefas e a rota que serve a interface web estão em `app/main.py`. As rotas da API validam e serializam os contratos HTTP por meio de modelos Pydantic, convertem erros de domínio em respostas HTTP e recebem `TaskService` através do sistema de dependências do FastAPI. As rotas de tarefas exigem a chave compartilhada `API_KEY` no header `X-API-Key`; o processo não inicia se a chave não tiver ao menos 32 caracteres.
+
+`GET /tasks` aplica filtro por status no banco e pagina com `limit` (padrão 50, máximo 100) e `offset` (padrão 0), em ordem estável por UUID.
 
 ### Interface web
 
-`app/static/index.html` fornece uma interface sem dependências de build para criar, listar, filtrar, concluir/reabrir e excluir tarefas. A página é servida em `/` pelo mesmo processo FastAPI e chama os endpoints `/tasks`; não é necessário configurar CORS para esse fluxo.
+`app/static/index.html` fornece uma interface sem dependências de build para criar, listar, filtrar, concluir/reabrir e excluir tarefas. A página é servida em `/` pelo mesmo processo FastAPI e chama os endpoints `/tasks`; não é necessário configurar CORS para esse fluxo. O operador informa a chave na página, que a mantém somente em memória durante a sessão e percorre os resultados paginados.
 
 ### Service
 
@@ -48,7 +50,7 @@ As rotas CRUD de tarefas e a rota que serve a interface web estão em `app/main.
 
 `app/database.py` configura o engine SQLite e fornece uma sessão por requisição. `app/database_models.py` define as tabelas ORM. A aplicação cria as tabelas durante a inicialização.
 
-O banco padrão é `sqlite:///./tasks.db`. A variável de ambiente `DATABASE_URL` permite configurar outro endereço aceito pelo SQLAlchemy. O SQLite é local ao processo/arquivo; para produção com concorrência ou múltiplas instâncias, avalie um banco servidor.
+O banco padrão é `sqlite:///./tasks.db`. A variável de ambiente `DATABASE_URL` permite configurar outro endereço aceito pelo SQLAlchemy. `create_all` cria tabelas ausentes, mas não migra tabelas existentes; antes de atualizar um banco persistente em produção, é necessário adicionar migrações versionadas e validar upgrade/rollback. SQLite é suportado para uso local e implantação single-instance com volume persistente e backup/restauração testados; não usar com múltiplas réplicas. Consulte [docs/plano-release.md](plano-release.md) para os bloqueios de release.
 
 ### Modelos
 
@@ -80,6 +82,8 @@ tests/
 ## Testes
 
 Os testes de `tests/test_tasks.py` usam um banco SQLite em memória isolado por teste. Eles cobrem criação válida, validação do título, conclusão de tarefa e IDs inexistentes.
+
+`tests/test_api.py` verifica contratos HTTP, chave de API, CRUD, validação, paginação e entrega da interface. O GitHub Actions executa a suíte em Python 3.11 e 3.14. O roteiro mínimo de smoke test manual de navegador está em [docs/plano-release.md](plano-release.md).
 
 ```powershell
 python -m pytest

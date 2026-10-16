@@ -30,6 +30,8 @@ PostgreSQL, Docker, Pipenv e React não estão configurados para uso nesta vers�
 - `app/database_models.py`: modelos ORM.
 - `app/models.py`: modelos Pydantic.
 - `tests/test_tasks.py`: testes dos serviços e do repositório de tarefas.
+- `tests/test_api.py`: testes do contrato HTTP, autenticação e integração.
+- `.github/workflows/tests.yml`: execução da suíte em Python 3.11 e 3.14.
 
 Os serviços dependem do contrato `IRepository`, mantendo as regras de negócio desacopladas da persistência. Consulte [docs/arquitetura.md](docs/arquitetura.md) para detalhes.
 
@@ -51,7 +53,7 @@ py -m venv .venv
 python -m pip install -r requirements-dev.txt
 ```
 
-O arquivo `requirements-dev.txt` instala as dependências da aplicação e do pytest.
+O arquivo `requirements-dev.txt` instala as dependências da aplicação, do pytest e dos testes HTTP.
 
 Na primeira inicialização, a aplicação cria as tabelas necessárias. Por padrão, o banco é `tasks.db` na raiz do projeto. Para mudar o caminho do arquivo SQLite, configure `DATABASE_URL` antes de iniciar o servidor:
 
@@ -60,6 +62,15 @@ $env:DATABASE_URL = "sqlite:///./data/tasks.db"
 ```
 
 O diretório `data` deve existir previamente. O projeto não carrega arquivos `.env` automaticamente.
+
+A API exige uma chave com pelo menos 32 caracteres. Gere uma chave para desenvolvimento e configure-a no ambiente antes de iniciar o servidor:
+
+```powershell
+$env:API_KEY = (python -c "import secrets; print(secrets.token_urlsafe(32))")
+python -m uvicorn app.main:app --reload
+```
+
+Em produção, configure `API_KEY` por meio do gerenciador de segredos da plataforma. Não coloque a chave no código, na imagem/container ou em arquivos versionados. O `.gitignore` exclui `.env`, `.secrets/`, arquivos `*.key` e `api_key.txt`. A interface em `/` pede a chave ao operador e a mantém apenas na memória da página; use HTTPS fora do ambiente local.
 
 ## Executar a aplicação
 
@@ -89,6 +100,7 @@ Os exemplos abaixo usam `curl.exe` no PowerShell e presumem que a API esteja em 
 ```powershell
 curl.exe -X POST http://127.0.0.1:8000/tasks `
   -H "Content-Type: application/json" `
+  -H "X-API-Key: $env:API_KEY" `
   -d '{"title":"Revisar documentação","description":"Atualizar o README"}'
 ```
 
@@ -101,19 +113,20 @@ $taskId = "UUID retornado pela API"
 ### Listar tarefas — `GET /tasks`
 
 ```powershell
-curl.exe http://127.0.0.1:8000/tasks
+curl.exe http://127.0.0.1:8000/tasks -H "X-API-Key: $env:API_KEY"
 ```
 
-Filtrar pelo status:
+As chamadas protegidas devem incluir `-H "X-API-Key: $env:API_KEY"`. A listagem retorna até 50 tarefas por padrão (máximo 100); use `limit` e `offset` para percorrer páginas. Filtrar pelo status:
 
 ```powershell
-curl.exe "http://127.0.0.1:8000/tasks?status=false"
+curl.exe "http://127.0.0.1:8000/tasks?status=false&limit=50&offset=0" `
+  -H "X-API-Key: $env:API_KEY"
 ```
 
 ### Consultar uma tarefa — `GET /tasks/{id}`
 
 ```powershell
-curl.exe "http://127.0.0.1:8000/tasks/$taskId"
+curl.exe "http://127.0.0.1:8000/tasks/$taskId" -H "X-API-Key: $env:API_KEY"
 ```
 
 ### Atualizar uma tarefa — `PUT /tasks/{id}`
@@ -123,13 +136,15 @@ O `PUT` substitui os campos editáveis. O título é obrigatório; descrição e
 ```powershell
 curl.exe -X PUT "http://127.0.0.1:8000/tasks/$taskId" `
   -H "Content-Type: application/json" `
+  -H "X-API-Key: $env:API_KEY" `
   -d '{"title":"Revisar documentação","description":"README atualizado","status":true}'
 ```
 
 ### Excluir uma tarefa — `DELETE /tasks/{id}`
 
 ```powershell
-curl.exe -X DELETE "http://127.0.0.1:8000/tasks/$taskId"
+curl.exe -X DELETE "http://127.0.0.1:8000/tasks/$taskId" `
+  -H "X-API-Key: $env:API_KEY"
 ```
 
 ## Testes
@@ -146,7 +161,7 @@ Ou use GNU Make:
 make test
 ```
 
-Os testes usam um banco SQLite em memória isolado e cobrem criação válida, validação do título, atualização do status e busca/exclusão de IDs inexistentes.
+Os testes usam bancos SQLite em memória isolados e cobrem regras de serviço, autenticação, CRUD HTTP, validação, filtro/paginação e entrega da interface.
 
 ## Como a IA Acelerou Este Projeto
 
@@ -156,18 +171,16 @@ As sugestões geradas por IA não substituem análise técnica: alterações, te
 
 ## Limitações e Próximos Passos
 
-- A API não possui autenticação nem autorização; não deve ser exposta como serviço multiusuário sem implementar esses controles.
-- A listagem oferece apenas filtro por status; busca textual, paginação e ordenação são possíveis evoluções.
-- A persistência usa SQLite local. PostgreSQL pode ser considerado para ambientes que precisem de acesso concorrente ou implantação em servidor.
+- A API usa uma chave compartilhada (`API_KEY`), sem contas individuais, rotação automática ou autorização por usuário; o release inicial é single-tenant e não substitui autenticação multiusuário.
+- A listagem possui paginação por `limit`/`offset`, filtro por status e ordenação estável por UUID; busca textual ainda não está implementada.
+- SQLite é o alvo single-instance do release inicial. Não usar com múltiplas réplicas; a produção também depende de migrações de schema e backup/restauração validados.
 - Docker ainda não está configurado. Uma imagem da API e a persistência do banco em volume podem ser adicionadas em uma etapa futura.
 - A instalação atual usa `pip` e arquivos `requirements*.txt`; Pipenv ainda não está configurado.
 - A interface atual é HTML, CSS e JavaScript servidos pelo FastAPI. React permanece uma possibilidade futura.
 - O serviço e o repositório de usuários estão presentes, mas ainda não há endpoints HTTP para usuários.
 
-## Roadmap
+## Escopo e releases
 
-- **v0.1 — Fundação:** API, camadas de serviço e repositório, documentação e persistência SQLite.
-- **v0.2 — API de tarefas:** CRUD de tarefas e testes automatizados.
-- **v0.3 — Usuários e filtros:** endpoints de usuários e opções de busca mais completas.
-- **v0.4 — Empacotamento:** avaliar Docker e uma configuração PostgreSQL para implantação.
-- **v1.0 — MVP:** fluxos principais documentados, integrados e cobertos por testes essenciais.
+O escopo fechado do primeiro release, critérios de aceite, itens explicitamente adiados e bloqueios para produção estão em [docs/plano-release.md](docs/plano-release.md). O primeiro release é de uso controlado, single-tenant e single-instance; não representa uma aplicação multiusuário ou horizontalmente escalável.
+
+Pull requests devem passar pela suíte pytest em Python 3.11 e 3.14 no GitHub Actions. A implantação em produção fica bloqueada até existir migração versionada do schema e procedimento validado de backup/restauração para o ambiente escolhido.
