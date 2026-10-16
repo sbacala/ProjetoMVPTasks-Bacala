@@ -2,10 +2,12 @@
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Response, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.database import create_tables, get_db
@@ -31,6 +33,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+FRONTEND_FILE = Path(__file__).parent / "static" / "index.html"
+
 
 def get_task_service(
     session: Annotated[Session, Depends(get_db)],
@@ -41,6 +45,12 @@ def get_task_service(
         The task service dependency.
     """
     return TaskService(TaskRepository(session))
+
+
+@app.get("/", include_in_schema=False)
+def get_frontend() -> FileResponse:
+    """Serve the task-management web interface."""
+    return FileResponse(FRONTEND_FILE)
 
 
 @app.get("/tasks", response_model=list[Task], summary="List tasks")
