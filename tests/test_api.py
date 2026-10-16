@@ -1,6 +1,7 @@
 """HTTP contract tests for the task API."""
 
 from collections.abc import Generator
+from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
@@ -86,6 +87,81 @@ def test_create_read_update_and_delete_task(client: TestClient) -> None:
     assert deleted.status_code == 204
     assert deleted.content == b""
     assert client.get(f"/tasks/{task['id']}", headers=headers).status_code == 404
+
+
+def test_put_replaces_omitted_optional_fields_with_defaults(
+    client: TestClient,
+) -> None:
+    """PUT replaces the task and applies defaults for omitted fields."""
+    headers = {"X-API-Key": API_KEY}
+    created = client.post(
+        "/tasks",
+        headers=headers,
+        json={
+            "title": "Replace optional fields",
+            "description": "Remove this description",
+            "status": True,
+        },
+    )
+    task_id = created.json()["id"]
+
+    updated = client.put(
+        f"/tasks/{task_id}",
+        headers=headers,
+        json={"title": "Replacement title"},
+    )
+
+    assert updated.status_code == 200
+    assert updated.json()["description"] is None
+    assert updated.json()["status"] is False
+
+
+def test_duplicate_generated_uuid_returns_conflict(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A persistence UUID conflict is exposed as HTTP 409."""
+    task_id = UUID("00000000-0000-0000-0000-000000000001")
+    monkeypatch.setattr(
+        "app.services.task_service.uuid4",
+        lambda: task_id,
+    )
+    headers = {"X-API-Key": API_KEY}
+
+    first = client.post(
+        "/tasks",
+        headers=headers,
+        json={"title": "First duplicate identifier"},
+    )
+    second = client.post(
+        "/tasks",
+        headers=headers,
+        json={"title": "Second duplicate identifier"},
+    )
+
+    assert first.status_code == 201
+    assert second.status_code == 409
+
+
+def test_update_missing_task_returns_not_found(client: TestClient) -> None:
+    """Replacing a task that does not exist returns HTTP 404."""
+    response = client.put(
+        "/tasks/00000000-0000-0000-0000-000000000001",
+        headers={"X-API-Key": API_KEY},
+        json={"title": "Missing task"},
+    )
+
+    assert response.status_code == 404
+
+
+def test_invalid_task_uuid_returns_unprocessable(client: TestClient) -> None:
+    """A task route rejects path values that are not UUIDs."""
+    response = client.get(
+        "/tasks/not-a-uuid",
+        headers={"X-API-Key": API_KEY},
+    )
+
+    assert response.status_code == 422
 
 
 def test_list_tasks_filters_and_paginates(client: TestClient) -> None:
