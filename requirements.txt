@@ -1,0 +1,4 @@
+# Dependências iniciais do backend Python
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.34,<1.0
+SQLAlchemy>=2.0,<3.0
