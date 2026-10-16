@@ -2,7 +2,7 @@
 
 ## Release inicial: gerenciador de tarefas single-tenant
 
-Situação: **preparação em andamento**. Não publicar `v1.0.0` até passar os gates de hospedagem e backup externo abaixo.
+Situação: **`v1.0.0` publicado como release de código**. A publicação não declara prontidão para produção. Os gates de hospedagem e backup externo abaixo continuam pendentes; não implantar nem expor a API em produção até concluí-los.
 
 ### Incluído
 

@@ -204,4 +204,4 @@ As sugestões geradas por IA não substituem análise técnica: alterações, te
 
 O escopo fechado do primeiro release, critérios de aceite, itens explicitamente adiados e bloqueios para produção estão em [docs/plano-release.md](docs/plano-release.md). O primeiro release é de uso controlado, single-tenant e single-instance; não representa uma aplicação multiusuário ou horizontalmente escalável.
 
-Pull requests devem passar pela suíte pytest em Python 3.11 e 3.14 no GitHub Actions. A implantação em produção fica bloqueada até existir migração versionada do schema e procedimento validado de backup/restauração para o ambiente escolhido.
+O release `v1.0.0` é publicado como release de código; isso não significa que a implantação esteja pronta para produção. Os testes automatizados e as migrações versionadas estão implementados. A produção continua bloqueada até configurar e validar backup externo criptografado, alertas e restauração, provisionar VM com HTTPS e executar o smoke test descrito em [docs/plano-release.md](docs/plano-release.md). Pull requests devem passar pela suíte pytest em Python 3.11 e 3.14 no GitHub Actions.
