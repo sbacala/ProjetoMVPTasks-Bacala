@@ -1,0 +1,21 @@
+[Unit]
+Description=Task Management API
+After=network.target
+
+[Service]
+Type=simple
+User=task-api
+Group=task-api
+WorkingDirectory=/opt/task-api/current
+EnvironmentFile=/etc/task-api/task-api.env
+ExecStart=/opt/task-api/venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/task-api
+
+[Install]
+WantedBy=multi-user.target
