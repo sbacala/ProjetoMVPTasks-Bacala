@@ -2,11 +2,12 @@
 
 ## Objetivo
 
-Construir uma aplicação web para organizar tarefas. O frontend React comunica-se com uma API REST em FastAPI, que aplica as regras de negócio e persiste os dados em SQLite.
+Construir uma aplicação web para organizar tarefas. A interface web comunica-se com uma API REST em FastAPI, que aplica as regras de negócio e persiste os dados em SQLite.
 
 ## Stack
 
-- **Frontend:** React
+- **Interface atual:** HTML, CSS e JavaScript servidos pelo FastAPI
+- **Frontend planejado:** React
 - **Backend:** Python e FastAPI
 - **Banco de dados:** SQLite
 - **ORM:** SQLAlchemy
@@ -17,6 +18,7 @@ Construir uma aplicação web para organizar tarefas. O frontend React comunica-
 ## Organização do backend
 
 - `app/main.py`: inicialização do FastAPI e endpoints HTTP para tarefas.
+- `app/static/index.html`: interface web para criar, listar, filtrar, concluir e excluir tarefas.
 - `app/services/`: regras de negócio para tarefas e usuários.
 - `app/repositories/`: contrato `IRepository` e implementações SQLAlchemy.
 - `app/database.py`: engine, fábrica de sessões e dependência de sessão.
@@ -60,7 +62,9 @@ Inicie a API com:
 uvicorn app.main:app --reload
 ```
 
-O frontend React ainda não está incluído neste repositório.
+Abra [http://127.0.0.1:8000](http://127.0.0.1:8000) para usar a interface. A documentação interativa da API está disponível em [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
+
+A interface atual é uma página leve, sem etapa de build, servida pelo próprio FastAPI. A futura aplicação React permanece no roadmap.
 
 ### Testes
 

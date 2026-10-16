@@ -2,12 +2,12 @@
 
 ## Visão geral
 
-O frontend React (previsto, ainda não incluído neste repositório) comunica-se por HTTP/JSON com a API FastAPI. As rotas da API atuam como controllers e delegam as operações ao serviço de tarefas. O serviço depende do contrato `IRepository`, cuja implementação SQLAlchemy lê e grava no SQLite.
+A interface HTML/CSS/JavaScript em `app/static/index.html` é servida pelo FastAPI e comunica-se com seus endpoints por HTTP/JSON. As rotas da API atuam como controllers e delegam as operações ao serviço de tarefas. O serviço depende do contrato `IRepository`, cuja implementação SQLAlchemy lê e grava no SQLite. Uma aplicação React poderá substituir a página atual no futuro.
 
 ```mermaid
 flowchart LR
-    React["Frontend<br/>React"]
-    API["API REST<br/>FastAPI"]
+    UI["Interface web<br/>HTML / CSS / JavaScript"]
+    API["FastAPI<br/>API REST + página web"]
     Controller["Controller<br/>app/main.py"]
     Service["TaskService<br/>Regras de negócio"]
     Contract["IRepository[Task]<br/>Contrato"]
@@ -15,7 +15,7 @@ flowchart LR
     Session["Sessão SQLAlchemy<br/>por requisição"]
     SQLite[("SQLite<br/>tasks.db")]
 
-    React <-->|"HTTP / JSON"| API
+    UI <-->|"HTTP / JSON"| API
     API --> Controller
     Controller -->|"injeção via Depends"| Service
     Service --> Contract
@@ -28,7 +28,11 @@ flowchart LR
 
 ### Controller
 
-As rotas CRUD de tarefas estão em `app/main.py`. Elas validam e serializam os contratos HTTP por meio de modelos Pydantic, convertem erros de domínio em respostas HTTP e recebem `TaskService` através do sistema de dependências do FastAPI.
+As rotas CRUD de tarefas e a rota que serve a interface web estão em `app/main.py`. As rotas da API validam e serializam os contratos HTTP por meio de modelos Pydantic, convertem erros de domínio em respostas HTTP e recebem `TaskService` através do sistema de dependências do FastAPI.
+
+### Interface web
+
+`app/static/index.html` fornece uma interface sem dependências de build para criar, listar, filtrar, concluir/reabrir e excluir tarefas. A página é servida em `/` pelo mesmo processo FastAPI e chama os endpoints `/tasks`; não é necessário configurar CORS para esse fluxo.
 
 ### Service
 
@@ -58,6 +62,8 @@ app/
   database.py
   database_models.py
   models.py
+  static/
+    index.html
   repositories/
     interfaces.py
     sqlalchemy_repository.py
