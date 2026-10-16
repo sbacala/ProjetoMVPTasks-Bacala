@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Interface simples para organizar suas tarefas."
+    />
+    <title>Minhas tarefas</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "Segoe UI", sans-serif;
+        color: #17211b;
+        background: #f4f7f4;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-width: 320px;
+      }
+
+      main {
+        width: min(100% - 32px, 760px);
+        margin: 56px auto;
+      }
+
+      .eyebrow {
+        margin: 0 0 8px;
+        color: #33734e;
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(2rem, 6vw, 3rem);
+        letter-spacing: -0.05em;
+      }
+
+      .intro {
+        margin: 10px 0 28px;
+        color: #647067;
+      }
+
+      .panel,
+      .task {
+        border: 1px solid #e0e8e1;
+        border-radius: 16px;
+        background: #fff;
+        box-shadow: 0 8px 24px rgb(29 58 39 / 5%);
+      }
+
+      .panel {
+        padding: 22px;
+      }
+
+      .panel h2 {
+        margin: 0 0 18px;
+        font-size: 1rem;
+      }
+
+      form {
+        display: grid;
+        gap: 14px;
+      }
+
+      label {
+        display: grid;
+        gap: 7px;
+        color: #445148;
+        font-size: 0.88rem;
+        font-weight: 600;
+      }
+
+      input,
+      textarea,
+      select {
+        width: 100%;
+        border: 1px solid #d9e1da;
+        border-radius: 9px;
+        padding: 11px 12px;
+        background: #fff;
+        color: #17211b;
+        font: inherit;
+      }
+
+      input:focus,
+      textarea:focus,
+      select:focus {
+        border-color: #43825b;
+        outline: 3px solid rgb(67 130 91 / 15%);
+      }
+
+      textarea {
+        min-height: 76px;
+        resize: vertical;
+      }
+
+      button {
+        min-height: 40px;
+        border: 0;
+        border-radius: 9px;
+        padding: 9px 14px;
+        background: #286541;
+        color: #fff;
+        cursor: pointer;
+        font: inherit;
+        font-weight: 650;
+      }
+
+      button:hover {
+        background: #1e5133;
+      }
+
+      button:focus-visible {
+        outline: 3px solid #9dc8aa;
+        outline-offset: 2px;
+      }
+
+      button:disabled {
+        cursor: wait;
+        opacity: 0.65;
+      }
+
+      .submit-button {
+        justify-self: start;
+        min-width: 140px;
+      }
+
+      .tasks-section {
+        margin-top: 32px;
+      }
+
+      .section-heading {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 18px;
+        margin-bottom: 14px;
+      }
+
+      .section-heading h2 {
+        margin: 0;
+        font-size: 1.25rem;
+      }
+
+      .filter {
+        width: auto;
+        min-width: 150px;
+      }
+
+      #task-list {
+        display: grid;
+        gap: 12px;
+      }
+
+      .task {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 18px;
+        padding: 18px;
+      }
+
+      .task-content {
+        min-width: 0;
+      }
+
+      .task-title {
+        overflow-wrap: anywhere;
+        margin: 0;
+        font-size: 1rem;
+      }
+
+      .task-description {
+        overflow-wrap: anywhere;
+        margin: 7px 0 0;
+        color: #647067;
+        white-space: pre-wrap;
+      }
+
+      .task-date {
+        display: block;
+        margin-top: 10px;
+        color: #818b83;
+        font-size: 0.78rem;
+      }
+
+      .task.completed .task-title {
+        color: #778179;
+        text-decoration: line-through;
+      }
+
+      .task-actions {
+        display: flex;
+        flex: 0 0 auto;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+
+      .task-actions button {
+        font-size: 0.82rem;
+      }
+
+      .task-actions .delete-button {
+        border: 1px solid #efceca;
+        background: #fff;
+        color: #a3372d;
+      }
+
+      .task-actions .delete-button:hover {
+        background: #fff4f2;
+      }
+
+      .notice {
+        min-height: 24px;
+        margin: 12px 0 0;
+        color: #a3372d;
+        font-size: 0.9rem;
+      }
+
+      .empty-state {
+        border: 1px dashed #cad6cc;
+        border-radius: 12px;
+        padding: 24px;
+        color: #647067;
+        text-align: center;
+      }
+
+      @media (max-width: 560px) {
+        main {
+          margin: 32px auto;
+        }
+
+        .section-heading {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .filter {
+          width: 100%;
+        }
+
+        .task {
+          flex-direction: column;
+        }
+
+        .task-actions {
+          justify-content: flex-start;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="eyebrow">Organização simples</p>
+        <h1>Minhas tarefas</h1>
+        <p class="intro">Registre o que precisa ser feito e acompanhe seu progresso.</p>
+      </header>
+
+      <section class="panel" aria-labelledby="form-title">
+        <h2 id="form-title">Adicionar tarefa</h2>
+        <form id="task-form">
+          <label for="title">
+            Título
+            <input
+              id="title"
+              name="title"
+              type="text"
+              minlength="3"
+              maxlength="100"
+              placeholder="Ex.: Revisar o planejamento"
+              required
+            />
+          </label>
+          <label for="description">
+            Descrição <span>(opcional)</span>
+            <textarea
+              id="description"
+              name="description"
+              placeholder="Adicione detalhes para esta tarefa"
+            ></textarea>
+          </label>
+          <button class="submit-button" type="submit">Adicionar tarefa</button>
+        </form>
+        <p class="notice" id="form-notice" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="tasks-section" aria-labelledby="tasks-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Seu progresso</p>
+            <h2 id="tasks-title">Lista de tarefas</h2>
+          </div>
+          <label class="filter" for="status-filter">
+            Exibir
+            <select id="status-filter">
+              <option value="all">Todas</option>
+              <option value="false">Pendentes</option>
+              <option value="true">Concluídas</option>
+            </select>
+          </label>
+        </div>
+        <p class="notice" id="list-notice" role="status" aria-live="polite"></p>
+        <div id="task-list" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <script>
+      const taskForm = document.querySelector("#task-form");
+      const taskList = document.querySelector("#task-list");
+      const statusFilter = document.querySelector("#status-filter");
+      const formNotice = document.querySelector("#form-notice");
+      const listNotice = document.querySelector("#list-notice");
+
+      function showApiError(error) {
+        if (Array.isArray(error.detail)) {
+          return error.detail.map((item) => item.msg).join(" ");
+        }
+        return error.detail || "Não foi possível concluir a operação.";
+      }
+
+      async function request(path, options = {}) {
+        let response;
+        try {
+          response = await fetch(path, {
+            ...options,
+            headers: {
+              ...(options.body ? { "Content-Type": "application/json" } : {}),
+              ...options.headers,
+            },
+          });
+        } catch (error) {
+          if (error instanceof TypeError) {
+            throw new Error(
+              "Não foi possível conectar à API. Verifique se o servidor FastAPI está em execução e tente novamente.",
+            );
+          }
+          throw error;
+        }
+
+        if (!response.ok) {
+          let error = {};
+          try {
+            error = await response.json();
+          } catch {
+            error.detail = "O servidor retornou uma resposta inválida.";
+          }
+          throw new Error(showApiError(error));
+        }
+
+        if (response.status === 204) {
+          return null;
+        }
+        return response.json();
+      }
+
+      function makeButton(label, className, onClick) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = label;
+        if (className) {
+          button.className = className;
+        }
+        button.addEventListener("click", onClick);
+        return button;
+      }
+
+      function renderTask(task) {
+        const card = document.createElement("article");
+        card.className = task.status ? "task completed" : "task";
+
+        const content = document.createElement("div");
+        content.className = "task-content";
+
+        const title = document.createElement("h3");
+        title.className = "task-title";
+        title.textContent = task.title;
+        content.append(title);
+
+        if (task.description) {
+          const description = document.createElement("p");
+          description.className = "task-description";
+          description.textContent = task.description;
+          content.append(description);
+        }
+
+        const date = document.createElement("time");
+        date.className = "task-date";
+        date.dateTime = task.created_at;
+        date.textContent = `Criada em ${new Intl.DateTimeFormat("pt-BR", {
+          dateStyle: "medium",
+          timeStyle: "short",
+        }).format(new Date(task.created_at))}`;
+        content.append(date);
+
+        const actions = document.createElement("div");
+        actions.className = "task-actions";
+        actions.append(
+          makeButton(task.status ? "Reabrir" : "Concluir", "", () =>
+            updateTask(task),
+          ),
+          makeButton("Excluir", "delete-button", () => deleteTask(task)),
+        );
+        card.append(content, actions);
+        return card;
+      }
+
+      function renderEmptyState() {
+        const message = document.createElement("p");
+        message.className = "empty-state";
+        message.textContent =
+          statusFilter.value === "all"
+            ? "Nenhuma tarefa cadastrada. Adicione uma acima para começar."
+            : "Nenhuma tarefa encontrada neste filtro.";
+        taskList.replaceChildren(message);
+      }
+
+      async function loadTasks() {
+        listNotice.textContent = "";
+        const query =
+          statusFilter.value === "all"
+            ? ""
+            : `?status=${encodeURIComponent(statusFilter.value)}`;
+        try {
+          const tasks = await request(`/tasks${query}`);
+          if (tasks.length === 0) {
+            renderEmptyState();
+            return;
+          }
+          taskList.replaceChildren(...tasks.map(renderTask));
+        } catch (error) {
+          taskList.replaceChildren();
+          listNotice.textContent = error.message;
+        }
+      }
+
+      async function updateTask(task) {
+        listNotice.textContent = "";
+        try {
+          await request(`/tasks/${task.id}`, {
+            method: "PUT",
+            body: JSON.stringify({
+              title: task.title,
+              description: task.description,
+              status: !task.status,
+            }),
+          });
+          await loadTasks();
+        } catch (error) {
+          listNotice.textContent = error.message;
+        }
+      }
+
+      async function deleteTask(task) {
+        listNotice.textContent = "";
+        try {
+          await request(`/tasks/${task.id}`, { method: "DELETE" });
+          await loadTasks();
+        } catch (error) {
+          listNotice.textContent = error.message;
+        }
+      }
+
+      taskForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        formNotice.textContent = "";
+        const formData = new FormData(taskForm);
+        const submitButton = taskForm.querySelector('button[type="submit"]');
+        submitButton.disabled = true;
+
+        try {
+          await request("/tasks", {
+            method: "POST",
+            body: JSON.stringify({
+              title: formData.get("title").trim(),
+              description: formData.get("description").trim() || null,
+            }),
+          });
+          taskForm.reset();
+          statusFilter.value = "all";
+          await loadTasks();
+          document.querySelector("#title").focus();
+        } catch (error) {
+          formNotice.textContent = error.message;
+        } finally {
+          submitButton.disabled = false;
+        }
+      });
+
+      statusFilter.addEventListener("change", loadTasks);
+      loadTasks();
+    </script>
+  </body>
+</html>
