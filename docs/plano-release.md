@@ -22,19 +22,30 @@ Situação: **`v1.0.0` publicado como release de código**. A publicação não 
 
 Esses itens só entram no backlog depois de confirmados por necessidade de produto e ambiente de implantação. Usuários e busca não devem ser tratados como pré-requisitos do primeiro release.
 
-## Critérios de aceite verificáveis
+## Critérios de aceite e estado
 
-- [ ] API sem chave correta retorna `401`; payload inválido retorna `422`.
-- [ ] CRUD respeita os contratos: criar `201`, consultar/atualizar `200`, remover `204`, recurso ausente `404` e UUID repetido `409`.
-- [ ] Filtro por status e paginação respeitam limites (1–100), offset não negativo e ordem estável.
-- [ ] Aplicação não inicia com `API_KEY` ausente ou menor que 32 caracteres.
-- [ ] `GET /` serve a interface empacotada.
-- [ ] `python -m pytest -q` passa localmente e no GitHub Actions para Python 3.11 e 3.14.
-- [ ] `python -m alembic upgrade head` aplica schema vazio e adota schema legado válido sem perder dados.
-- [ ] Backup diário verificado com retenção de sete cópias e teste de restauração concluído.
-- [ ] Cópia externa criptografada, alerta de falha e teste de restauração a partir do destino externo validados.
-- [ ] VM provisionada com volume persistente, HTTPS, usuário de serviço não privilegiado e `API_KEY` fora do checkout.
-- [ ] Smoke test manual no navegador: chave incorreta é recusada; chave válida permite criar, concluir, filtrar, paginar, excluir e recarregar tarefas.
+**Implementado e coberto por testes automatizados:**
+
+- Chave ausente/inválida retorna `401`; configuração ausente ou menor que 32 caracteres impede startup; payload inválido retorna `422`.
+- CRUD: criar `201`, consultar/atualizar `200`, excluir `204`, recurso ausente `404` e conflito de UUID na persistência `409`.
+- Filtro por status, paginação (limite 1–100, offset não negativo) e ordem estável por UUID.
+- `GET /` serve a interface empacotada.
+- Migração cria schema vazio e valida/adota schema legado conhecido preservando os dados.
+- Backup e restauração SQLite local, verificação de integridade, proteção contra backup inválido e retenção configurável.
+- A suíte do commit publicado passou localmente e no GitHub Actions para Python 3.11 e 3.14; os três testes adicionados nesta revisão passam localmente, mas ainda aguardam execução no CI.
+
+**Implementado como configuração ou ferramenta, mas ainda não validado em ambiente de implantação:**
+
+- Timer systemd de backup diário com retenção local de sete cópias; os arquivos de unidade foram adicionados ao repositório, mas não instalados numa VM.
+- Serviço systemd de uma instância com volume persistente e proxy HTTPS recomendado.
+- Smoke test visual completo da interface no navegador.
+
+**Pendente e bloqueia produção:**
+
+- Destino externo de backup criptografado aprovado, alertas de falha e restauração comprovada a partir desse destino.
+- VM provisionada com volume persistente, HTTPS, usuário não privilegiado e segredo fora do checkout.
+- Teste de migração/recuperação sobre cópia representativa do ambiente implantado.
+- Definição de metas operacionais de RPO/RTO, disponibilidade e desempenho conforme necessidade do produto.
 
 Os testes automatizados de contrato estão em `tests/test_api.py`; os testes de serviço em `tests/test_tasks.py`. O smoke test manual cobre interação visual sem exigir uma nova dependência de automação de navegador no primeiro release.
 

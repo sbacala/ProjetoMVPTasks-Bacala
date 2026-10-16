@@ -132,7 +132,7 @@ curl.exe "http://127.0.0.1:8000/tasks/$taskId" -H "X-API-Key: $env:API_KEY"
 
 ### Atualizar uma tarefa — `PUT /tasks/{id}`
 
-O `PUT` substitui os campos editáveis. O título é obrigatório; descrição e status podem ser enviados conforme necessário.
+O `PUT` substitui a representação editável inteira: o título é obrigatório; se omitidos, descrição volta a `null` e status a `false`. Para concluir/reabrir mantendo os demais campos, envie todos os campos editáveis.
 
 ```powershell
 curl.exe -X PUT "http://127.0.0.1:8000/tasks/$taskId" `
@@ -204,4 +204,38 @@ As sugestões geradas por IA não substituem análise técnica: alterações, te
 
 O escopo fechado do primeiro release, critérios de aceite, itens explicitamente adiados e bloqueios para produção estão em [docs/plano-release.md](docs/plano-release.md). O primeiro release é de uso controlado, single-tenant e single-instance; não representa uma aplicação multiusuário ou horizontalmente escalável.
 
+O catálogo de requisitos funcionais e não funcionais, histórias de usuário, critérios de aceite, estados de validação e roadmap está em [docs/requisitos.md](docs/requisitos.md).
+
 O release `v1.0.0` é publicado como release de código; isso não significa que a implantação esteja pronta para produção. Os testes automatizados e as migrações versionadas estão implementados. A produção continua bloqueada até configurar e validar backup externo criptografado, alertas e restauração, provisionar VM com HTTPS e executar o smoke test descrito em [docs/plano-release.md](docs/plano-release.md). Pull requests devem passar pela suíte pytest em Python 3.11 e 3.14 no GitHub Actions.
+
+## Requisitos desta versão e validação
+
+### Requisitos funcionais incluídos
+
+- **Tarefas:** criar, consultar por UUID, substituir e excluir; os contratos HTTP incluem `201`, `200`, `204`, `404` e `409` para conflito de persistência. Os endpoints de tarefa exigem `X-API-Key`; chave ausente ou inválida retorna `401`.
+- **Validação:** título obrigatório, aparado e com 3–100 caracteres; descrição opcional com até 2.000 caracteres; status booleano estrito; campos desconhecidos e metadados geridos pelo servidor são recusados (`422`).
+- **Atualização:** `PUT` é substituição completa dos campos editáveis. Título é obrigatório; descrição omitida torna-se `null` e status omitido torna-se `false`. Não há endpoint `PATCH`.
+- **Listagem:** filtro de status opcional, `limit` padrão 50 e máximo 100, `offset` não negativo e ordenação determinística por UUID.
+- **Interface:** página servida em `/` permite informar a chave, criar, listar, filtrar, concluir/reabrir, excluir e paginar. O teste automatizado confirma o serviço da página; o smoke test visual em navegador ainda não foi realizado no ambiente de implantação.
+- **Persistência:** migração Alembic cria banco novo ou valida/adota o schema legado conhecido preservando dados; a aplicação recusa iniciar se o banco não estiver na revisão atual.
+- **Operação local:** CLI de backup/restauração SQLite verifica integridade, cria snapshot pré-restauração, exige confirmação e implementa retenção configurável (sete por padrão). Há exemplos systemd de serviço e timer diário, mas não foram instalados ou validados em uma VM.
+
+Esses comportamentos têm cobertura automatizada em `tests/test_api.py`, `tests/test_tasks.py` e `tests/test_operations.py`. Nesta revisão, a suíte local passou com 34 testes. O workflow do GitHub para o commit publicado `v1.0.0` passou em Python 3.11 e 3.14; os quatro testes adicionados nesta revisão ainda não foram executados pelo CI, pois estas alterações não foram enviadas. Isso não comprova implantação nem exercício operacional em produção.
+
+### Requisitos não funcionais: estado e limites
+
+- **Segurança — parcial:** chave compartilhada de pelo menos 32 caracteres, lida de variável de ambiente, comparada em tempo constante e obrigatória para endpoints de tarefas. A aplicação não implementa contas, autorização por usuário, rotação automática, limitação de requisições ou auditoria. HTTPS e armazenamento protegido da chave dependem da implantação e ainda não foram validados.
+- **Integridade e recuperação — parcial:** revisões versionadas, verificação de schema no startup e backup/restore local têm testes. Não há destino externo, criptografia externa, alertas de falha nem teste de restauração a partir de cópia externa.
+- **Disponibilidade e operação — não medidas:** existe um exemplo systemd com um worker e reinício em falha; não há VM provisionada, monitoramento/alertas operacionais nem meta de disponibilidade verificada.
+- **Desempenho e escala — limitado:** paginação restringe o tamanho da resposta; o alvo é SQLite single-instance. Não há benchmark, teste de carga, meta de latência nem suporte a múltiplas réplicas.
+- **Compatibilidade e manutenção — verificado parcialmente:** CI executa testes em Python 3.11 e 3.14; a persistência suportada nesta versão é SQLite. Outras versões Python e bancos não estão certificados.
+- **Usabilidade — parcialmente verificada:** a interface é servida e as ações estão implementadas; falta executar o smoke test manual em navegador no ambiente implantado.
+
+### Planejamento proposto
+
+1. **Antes de qualquer produção (gate operacional, sem depender de nova funcionalidade):** escolher destino/região aprovados para backup externo criptografado; configurar alertas; testar restauração externa; provisionar VM, volume persistente, HTTPS e segredo; executar smoke test. Definir e registrar metas de RPO/RTO e disponibilidade antes de aceitar operação.
+2. **Release futuro 1.1.x (qualidade e operação, conforme necessidade):** automatizar o smoke test da interface; adicionar monitoramento/health check e alertas verificáveis; criar testes de carga e estabelecer metas mensuráveis de latência/volume; documentar rotação da chave e recuperação operacional.
+3. **Release futuro 1.2.x, condicional a uso multiusuário ou exposição pública:** autenticação individual, autorização e isolamento de tarefas, rotação de credenciais, limitação de requisições e trilha de auditoria, com testes de segurança e isolamento.
+4. **Release futuro 2.x, somente se os requisitos de escala exigirem:** avaliar banco servidor, múltiplas instâncias e estratégia de migração; exigir testes de concorrência, carga e recuperação antes de declarar suporte.
+
+As versões futuras são uma proposta, não uma promessa de compatibilidade ou prazo; o escopo deve ser confirmado com os requisitos do produto e do ambiente.
