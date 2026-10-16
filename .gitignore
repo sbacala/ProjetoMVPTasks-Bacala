@@ -9,6 +9,10 @@ venv/
 .env
 .env.*
 !.env.example
+.secrets/
+*.key
+*.pem
+api_key.txt
 *.db
 *.sqlite
 *.sqlite3

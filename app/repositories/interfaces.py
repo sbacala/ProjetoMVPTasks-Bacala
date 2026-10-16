@@ -1,6 +1,7 @@
 """Abstract repository contract shared by application repositories."""
 
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
 from typing import Generic, TypeVar
 from uuid import UUID
 
@@ -17,8 +18,13 @@ class IRepository(ABC, Generic[EntityT]):
         """Return an entity by its UUID, or None when it does not exist."""
 
     @abstractmethod
-    def get_all(self) -> list[EntityT]:
-        """Return all persisted entities."""
+    def get_all(
+        self,
+        offset: int = 0,
+        limit: int | None = None,
+        filters: Mapping[str, object] | None = None,
+    ) -> list[EntityT]:
+        """Return persisted entities matching optional filters and page bounds."""
 
     @abstractmethod
     def create(self, entity: EntityT) -> EntityT:

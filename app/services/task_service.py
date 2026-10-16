@@ -18,19 +18,29 @@ class TaskService:
         """
         self._repository = repository
 
-    def list_tasks(self, task_status: bool | None = None) -> list[Task]:
-        """Return tasks, optionally filtered by completion status.
+    def list_tasks(
+        self,
+        task_status: bool | None = None,
+        *,
+        offset: int = 0,
+        limit: int = 50,
+    ) -> list[Task]:
+        """Return a page of tasks, optionally filtered by completion status.
 
         Args:
             task_status: If provided, include only tasks with this status.
+            offset: Number of matching tasks to skip.
+            limit: Maximum number of tasks to return.
 
         Returns:
             The matching tasks.
         """
-        tasks = self._repository.get_all()
-        if task_status is None:
-            return tasks
-        return [task for task in tasks if task.status is task_status]
+        filters = {"status": task_status} if task_status is not None else None
+        return self._repository.get_all(
+            offset=offset,
+            limit=limit,
+            filters=filters,
+        )
 
     def create_task(self, task: Task) -> Task:
         """Create a task and assign a UUID when needed.

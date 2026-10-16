@@ -1,5 +1,6 @@
 """SQLAlchemy-backed implementation of the repository contract."""
 
+from collections.abc import Mapping
 from typing import Generic, TypeVar
 from uuid import UUID
 
@@ -45,9 +46,23 @@ class SqlAlchemyRepository(IRepository[EntityT], Generic[EntityT, RecordT]):
             return None
         return self._entity_type.model_validate(record)
 
-    def get_all(self) -> list[EntityT]:
-        """Return all persisted entities."""
-        records = self._session.scalars(select(self._record_type)).all()
+    def get_all(
+        self,
+        offset: int = 0,
+        limit: int | None = None,
+        filters: Mapping[str, object] | None = None,
+    ) -> list[EntityT]:
+        """Return persisted entities matching optional filters and page bounds."""
+        statement = select(self._record_type)
+        for field, value in (filters or {}).items():
+            column = getattr(self._record_type, field, None)
+            if column is None:
+                raise ValueError(f"Unsupported filter field: {field}")
+            statement = statement.where(column == value)
+        statement = statement.order_by(self._record_type.id).offset(offset)
+        if limit is not None:
+            statement = statement.limit(limit)
+        records = self._session.scalars(statement).all()
         return [self._entity_type.model_validate(record) for record in records]
 
     def create(self, entity: EntityT) -> EntityT:

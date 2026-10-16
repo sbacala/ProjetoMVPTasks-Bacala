@@ -268,6 +268,27 @@
         <p class="intro">Registre o que precisa ser feito e acompanhe seu progresso.</p>
       </header>
 
+      <section class="panel" aria-labelledby="access-title">
+        <h2 id="access-title">Acesso à API</h2>
+        <form id="api-key-form">
+          <label for="api-key">
+            Chave de API
+            <input
+              id="api-key"
+              name="api-key"
+              type="password"
+              minlength="32"
+              autocomplete="current-password"
+              required
+            />
+          </label>
+          <button class="submit-button" type="submit">Conectar</button>
+        </form>
+        <p class="notice" id="access-notice" role="status" aria-live="polite">
+          Informe a chave fornecida pelo administrador para acessar as tarefas.
+        </p>
+      </section>
+
       <section class="panel" aria-labelledby="form-title">
         <h2 id="form-title">Adicionar tarefa</h2>
         <form id="task-form">
@@ -313,15 +334,29 @@
         </div>
         <p class="notice" id="list-notice" role="status" aria-live="polite"></p>
         <div id="task-list" aria-live="polite"></div>
+        <div class="task-pagination" aria-label="Paginação das tarefas">
+          <button id="previous-page" type="button" disabled>Anterior</button>
+          <span id="page-status" aria-live="polite"></span>
+          <button id="next-page" type="button" disabled>Próxima</button>
+        </div>
       </section>
     </main>
 
     <script>
+      const apiKeyForm = document.querySelector("#api-key-form");
+      const apiKeyInput = document.querySelector("#api-key");
       const taskForm = document.querySelector("#task-form");
       const taskList = document.querySelector("#task-list");
       const statusFilter = document.querySelector("#status-filter");
+      const accessNotice = document.querySelector("#access-notice");
       const formNotice = document.querySelector("#form-notice");
       const listNotice = document.querySelector("#list-notice");
+      const previousPageButton = document.querySelector("#previous-page");
+      const nextPageButton = document.querySelector("#next-page");
+      const pageStatus = document.querySelector("#page-status");
+      const pageSize = 50;
+      let taskOffset = 0;
+      let apiKey = "";
 
       function showApiError(error) {
         if (Array.isArray(error.detail)) {
@@ -331,11 +366,15 @@
       }
 
       async function request(path, options = {}) {
+        if (!apiKey) {
+          throw new Error("Informe a chave de API para acessar as tarefas.");
+        }
         let response;
         try {
           response = await fetch(path, {
             ...options,
             headers: {
+              "X-API-Key": apiKey,
               ...(options.body ? { "Content-Type": "application/json" } : {}),
               ...options.headers,
             },
@@ -428,20 +467,46 @@
 
       async function loadTasks() {
         listNotice.textContent = "";
-        const query =
-          statusFilter.value === "all"
-            ? ""
-            : `?status=${encodeURIComponent(statusFilter.value)}`;
+        if (!apiKey) {
+          taskList.replaceChildren();
+          listNotice.textContent =
+            "Informe a chave de API acima para carregar suas tarefas.";
+          previousPageButton.disabled = true;
+          nextPageButton.disabled = true;
+          pageStatus.textContent = "";
+          return;
+        }
+        const query = new URLSearchParams({
+          limit: String(pageSize + 1),
+          offset: String(taskOffset),
+        });
+        if (statusFilter.value !== "all") {
+          query.set("status", statusFilter.value);
+        }
         try {
-          const tasks = await request(`/tasks${query}`);
+          const tasks = await request(`/tasks?${query}`);
           if (tasks.length === 0) {
+            if (taskOffset > 0) {
+              taskOffset = Math.max(0, taskOffset - pageSize);
+              await loadTasks();
+              return;
+            }
             renderEmptyState();
+            previousPageButton.disabled = true;
+            nextPageButton.disabled = true;
+            pageStatus.textContent = "";
             return;
           }
-          taskList.replaceChildren(...tasks.map(renderTask));
+          taskList.replaceChildren(...tasks.slice(0, pageSize).map(renderTask));
+          previousPageButton.disabled = taskOffset === 0;
+          nextPageButton.disabled = tasks.length <= pageSize;
+          pageStatus.textContent = `Página ${Math.floor(taskOffset / pageSize) + 1}`;
         } catch (error) {
           taskList.replaceChildren();
           listNotice.textContent = error.message;
+          previousPageButton.disabled = true;
+          nextPageButton.disabled = true;
+          pageStatus.textContent = "";
         }
       }
 
@@ -472,6 +537,29 @@
         }
       }
 
+      apiKeyForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        apiKey = apiKeyInput.value;
+        apiKeyInput.value = "";
+        accessNotice.textContent = "Chave recebida. Carregando tarefas...";
+        await loadTasks();
+        if (listNotice.textContent) {
+          accessNotice.textContent = listNotice.textContent;
+        } else {
+          accessNotice.textContent = "Conectado.";
+        }
+      });
+
+      previousPageButton.addEventListener("click", async () => {
+        taskOffset = Math.max(0, taskOffset - pageSize);
+        await loadTasks();
+      });
+
+      nextPageButton.addEventListener("click", async () => {
+        taskOffset += pageSize;
+        await loadTasks();
+      });
+
       taskForm.addEventListener("submit", async (event) => {
         event.preventDefault();
         formNotice.textContent = "";
@@ -489,6 +577,7 @@
           });
           taskForm.reset();
           statusFilter.value = "all";
+          taskOffset = 0;
           await loadTasks();
           document.querySelector("#title").focus();
         } catch (error) {
@@ -498,7 +587,10 @@
         }
       });
 
-      statusFilter.addEventListener("change", loadTasks);
+      statusFilter.addEventListener("change", () => {
+        taskOffset = 0;
+        loadTasks();
+      });
       loadTasks();
     </script>
   </body>
