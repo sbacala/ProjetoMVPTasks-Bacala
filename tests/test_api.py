@@ -61,10 +61,13 @@ def test_create_read_update_and_delete_task(client: TestClient) -> None:
     created = client.post(
         "/tasks",
         headers=headers,
-        json={"title": "Test API task"},
+        json={"title": "  Test API task  "},
     )
     assert created.status_code == 201
     task = created.json()
+    assert task["title"] == "Test API task"
+    assert task["id"]
+    assert task["created_at"].endswith(("Z", "+00:00"))
 
     fetched = client.get(f"/tasks/{task['id']}", headers=headers)
     assert fetched.status_code == 200
@@ -77,19 +80,12 @@ def test_create_read_update_and_delete_task(client: TestClient) -> None:
     )
     assert updated.status_code == 200
     assert updated.json()["status"] is True
+    assert updated.json()["created_at"] == task["created_at"]
 
     deleted = client.delete(f"/tasks/{task['id']}", headers=headers)
     assert deleted.status_code == 204
     assert deleted.content == b""
     assert client.get(f"/tasks/{task['id']}", headers=headers).status_code == 404
-
-
-def test_create_duplicate_task_id_returns_conflict(client: TestClient) -> None:
-    """Creating a task with an already-used UUID returns HTTP 409."""
-    headers = {"X-API-Key": API_KEY}
-    task = {"id": "5f61408d-cc22-4f51-9864-e6243df6241b", "title": "Duplicate"}
-    assert client.post("/tasks", headers=headers, json=task).status_code == 201
-    assert client.post("/tasks", headers=headers, json=task).status_code == 409
 
 
 def test_list_tasks_filters_and_paginates(client: TestClient) -> None:
@@ -140,6 +136,45 @@ def test_invalid_task_and_pagination_inputs_return_unprocessable(
         client.get("/tasks", headers=headers, params={"offset": -1}).status_code
         == 422
     )
+
+
+def test_create_rejects_invalid_fields_and_server_managed_metadata(
+    client: TestClient,
+) -> None:
+    """The API rejects blank/oversized values and client-owned metadata."""
+    headers = {"X-API-Key": API_KEY}
+    invalid_payloads = (
+        {"title": "   "},
+        {"title": "Valid title", "description": "x" * 2001},
+        {"title": "Valid title", "id": "5f61408d-cc22-4f51-9864-e6243df6241b"},
+        {"title": "Valid title", "created_at": "2026-10-16T12:00:00Z"},
+        {"title": "Valid title", "status": "false"},
+    )
+    for payload in invalid_payloads:
+        assert client.post("/tasks", headers=headers, json=payload).status_code == 422
+
+
+def test_update_rejects_server_managed_metadata(client: TestClient) -> None:
+    """Clients cannot change task identity or creation time through PUT."""
+    headers = {"X-API-Key": API_KEY}
+    created = client.post(
+        "/tasks",
+        headers=headers,
+        json={"title": "Update metadata test"},
+    )
+    assert created.status_code == 201
+    task_id = created.json()["id"]
+
+    response = client.put(
+        f"/tasks/{task_id}",
+        headers=headers,
+        json={
+            "title": "Changed title",
+            "id": task_id,
+            "created_at": "2020-01-01T00:00:00Z",
+        },
+    )
+    assert response.status_code == 422
 
 
 def test_frontend_file_is_served(client: TestClient) -> None:

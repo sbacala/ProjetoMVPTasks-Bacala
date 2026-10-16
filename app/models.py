@@ -3,18 +3,14 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 
 
-class Task(BaseModel):
-    """Represent a task managed by the application."""
+class TaskFields(BaseModel):
+    """Fields shared by task commands and persisted task entities."""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(extra="forbid")
 
-    id: UUID | None = Field(
-        default=None,
-        description="UUID identifying the task; optional when creating a task.",
-    )
     title: str = Field(
         min_length=3,
         max_length=100,
@@ -22,16 +18,71 @@ class Task(BaseModel):
     )
     description: str | None = Field(
         default=None,
-        description="Optional task description.",
+        max_length=2000,
+        description="Optional task description, up to 2000 characters.",
     )
-    status: bool = Field(
+    status: StrictBool = Field(
         default=False,
         description="Whether the task is complete.",
     )
+
+    @field_validator("title", mode="before")
+    @classmethod
+    def normalize_title(cls, value: object) -> object:
+        """Trim title whitespace and reject titles too short after trimming."""
+        if isinstance(value, str):
+            normalized = value.strip()
+            if len(normalized) < 3:
+                raise ValueError(
+                    "Title must contain at least 3 non-whitespace characters."
+                )
+            return normalized
+        return value
+
+
+class TaskCreate(TaskFields):
+    """Client-supplied fields accepted when creating a task."""
+
+
+class TaskUpdate(TaskFields):
+    """Client-supplied fields accepted when replacing a task."""
+
+
+class TaskResponse(TaskFields):
+    """Public representation returned for persisted tasks."""
+
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+    id: UUID
+    created_at: datetime
+
+    @field_validator("created_at")
+    @classmethod
+    def require_timezone_aware_created_at(cls, value: datetime) -> datetime:
+        """Reject naive datetimes so API responses always carry a timezone."""
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("created_at must include a timezone.")
+        return value
+
+
+class Task(TaskFields):
+    """Represent a persisted task returned by the application."""
+
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+    id: UUID = Field(description="UUID identifying the persisted task.")
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         description="UTC date and time when the task was created.",
     )
+
+    @field_validator("created_at")
+    @classmethod
+    def require_timezone_aware_created_at(cls, value: datetime) -> datetime:
+        """Reject naive datetimes so persisted values always have a timezone."""
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("created_at must include a timezone.")
+        return value
 
 
 class User(BaseModel):

@@ -28,7 +28,7 @@ flowchart LR
 
 ### Controller
 
-As rotas CRUD de tarefas e a rota que serve a interface web estão em `app/main.py`. As rotas da API validam e serializam os contratos HTTP por meio de modelos Pydantic, convertem erros de domínio em respostas HTTP e recebem `TaskService` através do sistema de dependências do FastAPI. As rotas de tarefas exigem a chave compartilhada `API_KEY` no header `X-API-Key`; o processo não inicia se a chave não tiver ao menos 32 caracteres.
+As rotas CRUD de tarefas e a rota que serve a interface web estão em `app/main.py`. As rotas validam comandos (`TaskCreate`/`TaskUpdate`) e respostas (`TaskResponse`) separadamente, convertem erros de domínio em respostas HTTP e recebem `TaskService` pelo provedor de composição em `app/dependencies.py`. Assim, controllers não constroem sessões nem repositórios concretos, e o serviço depende do protocolo `TaskRepositoryProtocol`. As rotas de tarefas exigem a chave compartilhada `API_KEY` no header `X-API-Key`; o processo não inicia se a chave não tiver ao menos 32 caracteres.
 
 `GET /tasks` aplica filtro por status no banco e pagina com `limit` (padrão 50, máximo 100) e `offset` (padrão 0), em ordem estável por UUID.
 
@@ -38,7 +38,7 @@ As rotas CRUD de tarefas e a rota que serve a interface web estão em `app/main.
 
 ### Service
 
-`app/services/task_service.py` contém as regras de negócio para listar, criar, consultar, atualizar e excluir tarefas. O serviço depende de `IRepository[Task]`, sem conhecer SQLAlchemy ou detalhes da conexão.
+`app/services/task_service.py` contém as regras de negócio para listar, criar, consultar, atualizar e excluir tarefas. O serviço depende de `TaskRepositoryProtocol`, sem conhecer SQLAlchemy ou detalhes da conexão. Valida os limites de paginação por conta própria e converte conflitos de persistência em erros de domínio.
 
 `app/services/user_service.py` contém operações de domínio de usuários, mas ainda não há endpoints HTTP de usuários.
 
@@ -55,6 +55,8 @@ O banco padrão é `sqlite:///./tasks.db`. A variável de ambiente `DATABASE_URL
 ### Modelos
 
 `app/models.py` define os modelos Pydantic `Task` e `User`, usados como contratos tipados da aplicação. `app/database_models.py` mantém os modelos ORM separados, responsáveis pelo mapeamento relacional.
+
+Na API de tarefas, `TaskCreate` e `TaskUpdate` são schemas de entrada separados de `TaskResponse`; clientes não podem definir o UUID nem `created_at`. O título é aparado e precisa manter 3–100 caracteres, a descrição é limitada a 2000 caracteres e `status` exige booleano real. Timestamps persistidos são normalizados para UTC, inclusive no round-trip com SQLite.
 
 ## Estrutura relevante
 

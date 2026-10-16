@@ -19,11 +19,10 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 from fastapi.security import APIKeyHeader
-from sqlalchemy.orm import Session
 
-from app.database import create_tables, get_db
-from app.models import Task
-from app.repositories.task_repository import TaskRepository
+from app.database import create_tables
+from app.dependencies import get_task_service
+from app.models import TaskCreate, TaskResponse, TaskUpdate
 from app.services.exceptions import (
     EntityAlreadyExistsError,
     EntityNotFoundError,
@@ -71,17 +70,6 @@ def require_api_key(
         )
 
 
-def get_task_service(
-    session: Annotated[Session, Depends(get_db)],
-) -> TaskService:
-    """Provide a task service backed by a request-scoped database session.
-
-    Returns:
-        The task service dependency.
-    """
-    return TaskService(TaskRepository(session))
-
-
 @app.get("/", include_in_schema=False)
 def get_frontend() -> FileResponse:
     """Serve the task-management web interface."""
@@ -90,7 +78,7 @@ def get_frontend() -> FileResponse:
 
 @app.get(
     "/tasks",
-    response_model=list[Task],
+    response_model=list[TaskResponse],
     summary="List tasks",
     dependencies=[Depends(require_api_key)],
 )
@@ -99,7 +87,7 @@ def list_tasks(
     task_status: bool | None = Query(default=None, alias="status"),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
-) -> list[Task]:
+) -> list[TaskResponse]:
     """List a page of tasks, optionally filtering by completion status.
 
     Args:
@@ -110,21 +98,22 @@ def list_tasks(
     Returns:
         The matching tasks.
     """
-    return task_service.list_tasks(task_status, offset=offset, limit=limit)
+    tasks = task_service.list_tasks(task_status, offset=offset, limit=limit)
+    return [TaskResponse.model_validate(task) for task in tasks]
 
 
 @app.post(
     "/tasks",
-    response_model=Task,
+    response_model=TaskResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a task",
     dependencies=[Depends(require_api_key)],
 )
 def create_task(
-    task: Task,
+    task: TaskCreate,
     task_service: Annotated[TaskService, Depends(get_task_service)],
-) -> Task:
-    """Create a task and assign it a UUID if one was not supplied.
+) -> TaskResponse:
+    """Create a task and assign a server-generated UUID.
 
     Args:
         task: The task data to create.
@@ -133,10 +122,11 @@ def create_task(
         The created task.
 
     Raises:
-        HTTPException: If the supplied UUID is already in use.
+        HTTPException: If the generated UUID conflicts with an existing task.
     """
     try:
-        return task_service.create_task(task)
+        created_task = task_service.create_task(task)
+        return TaskResponse.model_validate(created_task)
     except EntityAlreadyExistsError as error:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -146,14 +136,14 @@ def create_task(
 
 @app.get(
     "/tasks/{task_id}",
-    response_model=Task,
+    response_model=TaskResponse,
     summary="Get a task",
     dependencies=[Depends(require_api_key)],
 )
 def get_task(
     task_id: UUID,
     task_service: Annotated[TaskService, Depends(get_task_service)],
-) -> Task:
+) -> TaskResponse:
     """Return a task by UUID.
 
     Args:
@@ -166,7 +156,7 @@ def get_task(
         HTTPException: If no task with the UUID exists.
     """
     try:
-        return task_service.get_task(task_id)
+        return TaskResponse.model_validate(task_service.get_task(task_id))
     except EntityNotFoundError as error:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -176,15 +166,15 @@ def get_task(
 
 @app.put(
     "/tasks/{task_id}",
-    response_model=Task,
+    response_model=TaskResponse,
     summary="Update a task",
     dependencies=[Depends(require_api_key)],
 )
 def update_task(
     task_id: UUID,
-    task: Task,
+    task: TaskUpdate,
     task_service: Annotated[TaskService, Depends(get_task_service)],
-) -> Task:
+) -> TaskResponse:
     """Replace a task's editable fields while preserving its UUID and creation time.
 
     Args:
@@ -198,7 +188,8 @@ def update_task(
         HTTPException: If no task with the UUID exists.
     """
     try:
-        return task_service.update_task(task_id, task)
+        updated_task = task_service.update_task(task_id, task)
+        return TaskResponse.model_validate(updated_task)
     except EntityNotFoundError as error:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

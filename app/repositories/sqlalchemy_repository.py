@@ -1,6 +1,5 @@
 """SQLAlchemy-backed implementation of the repository contract."""
 
-from collections.abc import Mapping
 from typing import Generic, TypeVar
 from uuid import UUID
 
@@ -10,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database_models import EntityRecord
+from app.repositories.exceptions import RepositoryConflictError
 from app.repositories.interfaces import IRepository
 
 EntityT = TypeVar("EntityT", bound=BaseModel)
@@ -50,14 +50,41 @@ class SqlAlchemyRepository(IRepository[EntityT], Generic[EntityT, RecordT]):
         self,
         offset: int = 0,
         limit: int | None = None,
-        filters: Mapping[str, object] | None = None,
     ) -> list[EntityT]:
-        """Return persisted entities matching optional filters and page bounds."""
+        """Return persisted entities within optional page bounds."""
+        return self._get_all(offset=offset, limit=limit)
+
+    def _get_all(
+        self,
+        *,
+        offset: int,
+        limit: int | None,
+        filters: dict[str, object] | None = None,
+    ) -> list[EntityT]:
+        """Query a stable page and apply internal ORM-column equality filters.
+
+        Args:
+            offset: Number of matching records to skip.
+            limit: Maximum number of records, or None for no limit.
+            filters: Internal ORM field/value pairs used by specialized
+                repositories; field names are not accepted from API input.
+
+        Returns:
+            Matching entities ordered by their primary key.
+
+        Raises:
+            ValueError: If pagination bounds are invalid or a filter field is
+                not mapped on the configured record type.
+        """
+        if offset < 0:
+            raise ValueError("offset must be non-negative.")
+        if limit is not None and limit < 1:
+            raise ValueError("limit must be positive.")
         statement = select(self._record_type)
         for field, value in (filters or {}).items():
             column = getattr(self._record_type, field, None)
             if column is None:
-                raise ValueError(f"Unsupported filter field: {field}")
+                raise ValueError(f"Unsupported repository filter: {field}")
             statement = statement.where(column == value)
         statement = statement.order_by(self._record_type.id).offset(offset)
         if limit is not None:
@@ -75,9 +102,9 @@ class SqlAlchemyRepository(IRepository[EntityT], Generic[EntityT, RecordT]):
         self._session.add(record)
         try:
             self._session.commit()
-        except IntegrityError:
+        except IntegrityError as error:
             self._session.rollback()
-            raise
+            raise RepositoryConflictError from error
         self._session.refresh(record)
         return self._entity_type.model_validate(record)
 
